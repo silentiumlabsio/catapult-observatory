@@ -18,9 +18,9 @@
 
 ## Overview
 
-Catapult Observatory began with a specialized USB wireless module originally intended for hotel television systems.
+Catapult Observatory began with a specialized USB wireless module originally designed for hotel television systems.
 
-The module is based on the Marvell 88W8997 Wi-Fi and Bluetooth platform. Instead of leaving it limited to its original purpose, I rebuilt the surrounding software environment and developed a complete local wireless research platform around it.
+The module is based on the **Marvell 88W8997** Wi-Fi and Bluetooth platform. Rather than leaving it limited to its original embedded use case, I rebuilt the surrounding software environment and developed a complete local wireless research and assessment platform around it.
 
 This was not a plug-and-play project.
 
@@ -28,17 +28,42 @@ The build required:
 
 - A custom WSL2 Linux kernel
 - USB/IP passthrough from Windows into Kali Linux
-- Marvell wireless driver integration
+- Marvell Wi-Fi and Bluetooth driver integration
 - Wi-Fi access-point configuration
-- Bluetooth support through BlueZ
-- DHCP, DNS, routing, and NAT services
+- DHCP, local DNS, routing, and NAT
+- BlueZ-based Bluetooth support
 - Local telemetry collectors
 - RSSI-based sensing engines
 - Experimental multi-link spatial sensing
-- Local evidence and assessment workflows
+- Local assessment, evidence, and reporting workflows
 - A browser-based control and visualization dashboard
 
-The result is **Catapult Observatory**, a proof-of-concept platform for local wireless visibility, experimentation, device assessment, and signal-behavior analysis.
+The result is **Catapult Observatory**, a proof-of-concept platform for local wireless visibility, device assessment, signal-behavior analysis, and hardware experimentation.
+
+---
+
+## Table of Contents
+
+- [Project Status](#project-status)
+- [From This to This](#from-this-to-this)
+- [Why This Build Was Difficult](#why-this-build-was-difficult)
+- [Custom Kernel Work](#custom-kernel-work)
+- [System Architecture](#system-architecture)
+- [Core Components](#core-components)
+- [Wi-Fi Intelligence](#wi-fi-intelligence)
+- [Bluetooth Intelligence](#bluetooth-intelligence)
+- [RSSI-Based Sensing](#rssi-based-sensing)
+- [Motion Lens](#motion-lens)
+- [Spatial Lab](#spatial-lab)
+- [IoT and Firmware Assessment](#iot-and-firmware-assessment)
+- [Performance Laboratory](#performance-laboratory)
+- [Assessment, Evidence, and Reporting](#assessment-evidence-and-reporting)
+- [Local Processing and Privacy](#local-processing-and-privacy)
+- [Project Images](#project-images)
+- [Hardware and Driver Limitations](#hardware-and-driver-limitations)
+- [Responsible Use](#responsible-use)
+- [Documentation](#documentation)
+- [Source Availability](#source-availability)
 
 ---
 
@@ -46,9 +71,9 @@ The result is **Catapult Observatory**, a proof-of-concept platform for local wi
 
 | Area | Status |
 |---|---|
-| Custom WSL2 kernel | Operational |
+| Custom WSL2 kernel | Operational in the lab environment |
 | USB/IP attachment | Operational |
-| Marvell Wi-Fi interface | Operational |
+| Marvell Wi-Fi interface | Operational when attached to WSL2 |
 | Wi-Fi access point | Operational |
 | Bluetooth controller | Operational |
 | Local dashboard | Operational |
@@ -56,31 +81,40 @@ The result is **Catapult Observatory**, a proof-of-concept platform for local wi
 | Bluetooth discovery and inventory | Operational |
 | RSSI movement sensing | Experimental |
 | Multi-link zone sensing | Experimental |
-| Device behavior intelligence | In active stabilization |
-| Raw CSI | Not exposed by current driver |
-| Monitor mode | Not exposed by current driver |
+| Device-behavior analysis | Prototype |
+| IoT and firmware comparison workflows | Prototype |
+| Raw CSI | Not exposed by the current driver |
+| Monitor mode | Not exposed by the current driver |
 
 > **Important:** Catapult Observatory does not claim to identify people, reconstruct body pose, see through walls, or calculate exact physical coordinates. Its sensing features are based on measurable RSSI and station-telemetry changes exposed by the current driver.
 
 ---
 
-## From This
+## From This to This
+
+### Original hardware
 
 A USB wireless module designed for a narrow embedded use case:
 
 - Marvell 88W8997 chipset
 - 2×2 802.11ac Wi-Fi
-- Bluetooth and BLE support
-- USB 2.0 interface
+- 2.4 GHz and 5 GHz operation
+- Bluetooth and Bluetooth Low Energy
+- USB 2.0 host interface
 - Limited original software environment
 
-## To This
+<p align="center">
+  <img src="docs/images/hardware-module.jpg"
+       alt="Original Catapult Marvell wireless module"
+       width="700">
+</p>
 
-A local platform supporting:
+### Rebuilt platform
+
+A local research and assessment platform supporting:
 
 - Wi-Fi client visibility
-- Bluetooth discovery
-- Device inventory
+- Bluetooth discovery and inventory
 - Signal and traffic history
 - RSSI-based disturbance sensing
 - Experimental multi-link zone sensing
@@ -101,14 +135,15 @@ The work included:
 
 1. Identifying the hardware and chipset
 2. Building a custom WSL2 Linux kernel
-3. Enabling the required USB and networking support
-4. Passing the USB device from Windows into WSL with `usbipd-win`
+3. Enabling the required USB, wireless, Bluetooth, and networking support
+4. Passing the USB device from Windows into WSL2 with `usbipd-win`
 5. Bringing the Marvell Wi-Fi and Bluetooth interfaces online
 6. Creating a stable access-point stack
-7. Building persistent recovery and service scripts
-8. Collecting driver-exposed telemetry
+7. Building recovery scripts and persistent system services
+8. Collecting only the telemetry the driver actually exposes
 9. Designing signal-processing and visualization layers
-10. Keeping the platform honest about unsupported capabilities
+10. Separating measured facts from experimental inference
+11. Documenting unsupported capabilities instead of hiding them
 
 ---
 
@@ -130,7 +165,7 @@ The custom environment was configured for:
 - Wi-Fi access-point operation
 - Bluetooth HCI support
 - Linux routing and firewall features
-- Local systemd services
+- systemd-managed local services
 
 The adapter is attached from Windows into Kali Linux using `usbipd-win`.
 
@@ -138,6 +173,12 @@ Once attached, the primary Wi-Fi interface appears inside Linux as:
 
 ```text
 mlan0
+```
+
+The Bluetooth side appears as a Linux HCI controller, typically:
+
+```text
+hci0
 ```
 
 ---
@@ -148,16 +189,21 @@ mlan0
 flowchart TD
     A[Windows Host] --> B[usbipd-win]
     B --> C[Custom WSL2 Linux Kernel]
+
     C --> D[Marvell Wi-Fi Interface]
     C --> E[Bluetooth HCI Interface]
+
     D --> F[Wi-Fi Access Point]
-    F --> G[DHCP / DNS / NAT]
+    F --> G[DHCP / Local DNS / NAT]
+
     D --> H[Telemetry Collector]
     E --> I[BlueZ Discovery and Inventory]
+
     H --> J[RSSI Sensing Engine]
     H --> K[Spatial Sensing Engine]
     H --> L[Assessment and Evidence Services]
     I --> L
+
     J --> M[Catapult Observatory Dashboard]
     K --> M
     L --> M
@@ -171,9 +217,10 @@ All primary processing and storage remain local.
 
 ### Windows host layer
 
-- `usbipd-win`
+- Windows
 - WSL2
-- USB device attachment and recovery
+- `usbipd-win`
+- USB attachment and recovery
 - Browser access to the local dashboard
 
 ### Linux platform layer
@@ -204,7 +251,7 @@ All primary processing and storage remain local.
 
 Catapult Observatory can organize supported Wi-Fi station telemetry, including:
 
-- Connected client inventory
+- Connected-client inventory
 - Signal strength
 - Average signal measurements
 - Received and transmitted bytes
@@ -234,7 +281,7 @@ The Bluetooth workspace uses Linux BlueZ services to provide:
 - Connection status
 - Service UUID inventory
 - Advertisement history
-- Privacy exposure observations
+- Privacy-exposure observations
 - Read-only GATT inspection for approved devices
 - Wi-Fi and Bluetooth coexistence testing
 
@@ -279,9 +326,9 @@ Motion Lens converts sensing measurements into a live visual representation of r
 
 It includes:
 
-- Motion volume
-- Radio-path visualization
-- Temporal echoes
+- Motion-volume visualization
+- Radio-path field visualization
+- Temporal disturbance history
 - Movement onset and decay
 - Confidence indicators
 - Data-quality indicators
@@ -290,6 +337,12 @@ It includes:
 - Full-screen visualization
 
 Visual intensity is reduced when measurement quality or confidence is low.
+
+<p align="center">
+  <img src="docs/images/motion-lens.png"
+       alt="Catapult Observatory Motion Lens"
+       width="920">
+</p>
 
 ---
 
@@ -311,6 +364,12 @@ With several calibrated reference devices, the platform can estimate:
 - Session history
 
 These results are probabilistic zone estimates, not exact physical coordinates.
+
+<p align="center">
+  <img src="docs/images/spatial-lab.png"
+       alt="Catapult Observatory Spatial Lab"
+       width="920">
+</p>
 
 ---
 
@@ -400,37 +459,53 @@ It is not designed to collect:
 - Transferred files
 - Application payload contents
 
-No cloud processing is required.
+No cloud processing is required for the core platform.
 
 ---
 
-## Screenshots
+## Project Images
 
-### Main dashboard
+### Project overview
+
+<p align="center">
+  <img src="docs/images/catapult-overview.png"
+       alt="Catapult Observatory project overview"
+       width="920">
+</p>
+
+### Dashboard overview
+
+The dashboard combines platform state, wireless throughput, Bluetooth observations, DNS metadata, assessment controls, and local activity history.
 
 <p align="center">
   <img src="docs/images/dashboard-overview.png"
-       alt="Catapult Observatory dashboard"
+       alt="Catapult Observatory dashboard overview"
        width="920">
 </p>
 
-### Motion Lens
+### Intelligence Hub
+
+The Intelligence Hub combines local Wi-Fi and Bluetooth observations, behavior-model status, review items, and device activity into one workspace.
 
 <p align="center">
-  <img src="docs/images/motion-lens.png"
-       alt="Catapult Observatory Motion Lens"
+  <img src="docs/images/intelligence-hub.png"
+       alt="Catapult Observatory Intelligence Hub"
        width="920">
 </p>
 
-### Spatial Lab
+### Signals workspace
+
+The Signals workspace visualizes supported Wi-Fi and Bluetooth measurements, signal strength, range estimates, RF information, latency, and collector status.
 
 <p align="center">
-  <img src="docs/images/spatial-lab.png"
-       alt="Catapult Observatory Spatial Lab"
+  <img src="docs/images/signals-workspace.png"
+       alt="Catapult Observatory Signals workspace"
        width="920">
 </p>
 
 ### Bluetooth workspace
+
+The Bluetooth workspace provides BlueZ-based discovery, controller management, pairing-state visibility, inventory, and read-only inspection workflows.
 
 <p align="center">
   <img src="docs/images/bluetooth-workspace.png"
@@ -438,44 +513,23 @@ No cloud processing is required.
        width="920">
 </p>
 
-> All public screenshots should be sanitized before upload. Remove or blur MAC addresses, private IP addresses, personal device names, Bluetooth identities, private DNS destinations, and local system information.
+### Sensing Studio status
 
----
+<p align="center">
+  <img src="docs/images/sensing-studio-status.png"
+       alt="Catapult Observatory Sensing Studio status"
+       width="920">
+</p>
 
-## Repository Structure
+### Disturbance waterfall
 
-```text
-catapult-observatory/
-├── README.md
-├── SECURITY.md
-├── docs/
-│   ├── architecture.md
-│   ├── hardware.md
-│   ├── kernel-build.md
-│   ├── sensing.md
-│   ├── limitations.md
-│   ├── privacy-and-responsible-use.md
-│   └── images/
-│       ├── catapult-overview.png
-│       ├── hardware-module.jpg
-│       ├── dashboard-overview.png
-│       ├── motion-lens.png
-│       ├── spatial-lab.png
-│       └── bluetooth-workspace.png
-└── .gitignore
-```
+<p align="center">
+  <img src="docs/images/sensing-studio-waterfall.png"
+       alt="Catapult Observatory disturbance waterfall"
+       width="920">
+</p>
 
----
-
-## Documentation
-
-- [Architecture](docs/architecture.md)
-- [Hardware](docs/hardware.md)
-- [Custom Kernel and WSL2 Integration](docs/kernel-build.md)
-- [RSSI and Spatial Sensing](docs/sensing.md)
-- [Limitations](docs/limitations.md)
-- [Privacy and Responsible Use](docs/privacy-and-responsible-use.md)
-- [Security Policy](SECURITY.md)
+> All public screenshots were sanitized to obscure device names, MAC addresses, Bluetooth identities, and other identifying information.
 
 ---
 
@@ -500,6 +554,21 @@ Its sensing features use measurable RSSI and station-telemetry changes.
 
 ---
 
+## What This Project Is Not
+
+Catapult Observatory is not presented as:
+
+- A certified intrusion-detection system
+- A medical sensor
+- A safety-critical occupancy detector
+- A person-identification system
+- A law-enforcement tracking platform
+- A replacement for calibrated professional RF equipment
+
+It is a proof of concept and engineering research platform.
+
+---
+
 ## Responsible Use
 
 Catapult Observatory is intended for:
@@ -515,12 +584,67 @@ Testing should only be performed on devices, hardware, and networks you own or a
 
 ---
 
+## Repository Structure
+
+```text
+catapult-observatory/
+├── README.md
+├── SECURITY.md
+├── .gitignore
+└── docs/
+    ├── architecture.md
+    ├── hardware.md
+    ├── kernel-build.md
+    ├── sensing.md
+    ├── limitations.md
+    ├── privacy-and-responsible-use.md
+    └── images/
+        ├── catapult-overview.png
+        ├── hardware-module.jpg
+        ├── dashboard-overview.png
+        ├── intelligence-hub.png
+        ├── signals-workspace.png
+        ├── bluetooth-workspace.png
+        ├── motion-lens.png
+        ├── spatial-lab.png
+        ├── sensing-studio-status.png
+        └── sensing-studio-waterfall.png
+```
+
+---
+
+## Documentation
+
+- [Architecture](docs/architecture.md)
+- [Hardware](docs/hardware.md)
+- [Custom Kernel and WSL2 Integration](docs/kernel-build.md)
+- [RSSI and Spatial Sensing](docs/sensing.md)
+- [Limitations](docs/limitations.md)
+- [Privacy and Responsible Use](docs/privacy-and-responsible-use.md)
+- [Security Policy](SECURITY.md)
+
+---
+
 ## Author
 
 **Silentium**  
 Founder, SilentiumLabs
 
 GitHub: [silentiumlabsio](https://github.com/silentiumlabsio)
+
+---
+
+## Security Contact
+
+Please do not publish sensitive evidence, credentials, private device identifiers, or suspected vulnerabilities in a public issue.
+
+Security contact:
+
+```text
+Silentiumlabsio@gmail.com
+```
+
+See [SECURITY.md](SECURITY.md) for the responsible-disclosure policy.
 
 ---
 
